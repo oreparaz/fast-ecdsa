@@ -33,6 +33,40 @@ def sign(curve, hash, priv, message, nonce=None):
         if int(xr) != 0 and int(s) != 0:
             return int(xr), int(s)
 
+def sign_phase_offline(curve):
+    k, R = curve.generate_key()
+    kmod = ec.modp(curve.n, k)
+    kinv = 1 / kmod[0]
+    return (k, kinv, R)
+
+def sign_phase_online(curve, hash, priv, message, precomputed):
+    k, kinv, R = precomputed
+    e = _hash_message(curve, hash, message)
+    while True:
+        xr = curve.fe2i(R.x)
+        e, d, k, xr = ec.modp(curve.n, e, priv, k, xr)
+        s = (e + xr * d) * kinv
+        if int(xr) != 0 and int(s) != 0:
+            return int(xr), int(s)
+
+def sign_fast(curve, hash, priv, message, nonce=None):
+    """
+    Divide the ECDSA signing computation into an offline phase (message independent)
+    and online phase. The advantage here is that the offline phase can be precomputed
+    arbitrarily early. Note that the precomputed material needs to be kept secret,
+    treated as a key and disposed when not used.
+    """
+    import time
+    t0 = time.time()
+    precomputed = sign_phase_offline(curve) # you can compute this step arbitrarily early
+    t1 = time.time()
+    ret = sign_phase_online(curve, hash, priv, message, precomputed)
+    t2 = time.time()
+    time_offline = t1-t0
+    time_online = t2 - t1
+    print "offline took %f online %f speedup %f" % (time_offline, time_online,  (time_offline + time_online)/ time_online)
+    return ret
+
 def verify(curve, hash, pub, message, sig):
     """
     Verify given signature on message (hashed with given
@@ -106,6 +140,10 @@ if __name__ == '__main__':
     msg = 'hello world'
     sig = sign(ec.nistp256, H, k, msg)
     verify(ec.nistp256, H, Q, msg, sig)
+
+    sig_fast = sign_fast(ec.nistp256, H, k, msg)
+    verify(ec.nistp256, H, Q, msg, sig_fast)
+
 
     points = recover_candidate_pubkeys(ec.nistp256, H, msg, sig)
     print points
