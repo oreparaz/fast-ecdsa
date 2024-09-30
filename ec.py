@@ -16,7 +16,7 @@ def even(v):
 def egcd(x, y):
     """
     Extended euclidian algorithm.
-    Finds gcd(x,y) plus the coefficients of Bézout's identity.
+    Finds gcd(x,y) plus the coefficients of Bezout's identity.
     """
     assert x > 0 and y > 0
     g = 1
